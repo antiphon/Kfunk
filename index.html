@@ -46,6 +46,16 @@
         draw();
     }
 
+    function simpoints(n) {
+        for(let i=0; i < n; i++) 
+        {
+            let x = scenewidth *Math.random()+ leftbar;
+            let y = sceneheight*Math.random() + 0;
+            addpoint(x, y);
+        }
+    }
+
+
     function drawpoint(x, y) 
     {
         var point1 = new Phaser.Geom.Point(x, y);
@@ -205,8 +215,10 @@
         var buttonfs = this.add.text(2, 10, 'FS', 0).setInteractive().on('pointerup', function () {game.scale.toggleFullscreen();});
         var buttonno = this.add.text(2, 50, 'NO', 0).setInteractive().on('pointerup', function () {normalise=1-normalise;draw();});
         //var buttoncl = this.add.text(2, 90, 'CL', 0).setInteractive().on('pointerup', function () {clamp_it=1-clamp_it;draw();});
-        var buttoncl = this.add.text(2, 90, 'CL', 0).setInteractive().on('pointerup', function () {restart();});
+        var buttoncl = this.add.text(2, sceneheight - 30, 'CL', 0).setInteractive().on('pointerup', function () {restart();});
         //
+        var buttonr10 = this.add.text(2, 130, 'R10', 0).setInteractive().on('pointerup', function () {simpoints(10);});
+        
         draw();
         redrawpoints();
     }
