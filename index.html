@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser-arcade-physics.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.19/dist/phaser-arcade-physics.min.js"></script>
 </head>
 <body>
 
@@ -14,6 +14,9 @@
         scene: {
             preload: preload,
             create: create
+        },
+        scale: {
+            mode: Phaser.Scale.FIT
         }
     };
 
@@ -24,27 +27,59 @@
     var Kfunction = 0;
     var normalise = 0; // divide by sd(i)
     var clamp_it = 0; // fit the envelope to screen
+    var leftbar = 30; // for stuff
+    var rightbar = 30; // for stuff
+    var scenewidth = config.width - leftbar - rightbar;
+    var sceneheight = config.height;
+
     function preload ()
     {
     }
 
-    function addpoint(x, y)
+    function drawpoint(x, y) 
     {
         var point1 = new Phaser.Geom.Point(x, y);
         graphics.fillPointShape(point1, 15);
+    }
+
+    function redrawpoints() {
+        graphics.clear();
+        //graphics.fillStyle(0x111111, 1.0);
+        //graphics.fillRect(0, 0, scenewidth+leftbar+rightbar, sceneheight);
+        for(let i=0; i < points.length; i++)
+            drawpoint(points[i].x, points[i].y);
+    }
+
+    function addpoint(x, y)
+    {
+        // check within limits
+        if(x > scenewidth+leftbar || x < leftbar) return;
         points.push({x:x, y:y});
+        drawpoint(x,y);
         draw();
     }
+
     function draw()
     {
         graphics2.clear();
         // graphics2.fillPointShape(point1, 1);
-        var w = 800;
-        var h = 600;
+        var w = scenewidth;
+        var h = sceneheight;
         var vW = w*h;
         var UW = 2*(w+h);
-        var maxR = 800;
+        var maxR = w;
+        var xoff = leftbar;
         var pairdist = [];
+        
+        graphics2.lineStyle(1, 0x222222, 1.0);
+        graphics2.strokeRect(0, 0, w+leftbar+rightbar, h);
+        graphics2.strokeRect(leftbar, 0, w, h);
+        graphics2.fillStyle(0x002200, 1.0);
+        graphics2.fillRect(0, 0, leftbar, h);
+        graphics2.fillStyle(0x000022, 1.0);
+        graphics2.fillRect(xoff+w, 0, rightbar, h);
+        
+
         for (var i = 0; i < maxR; i++) {
             pairdist[i] = 0;
         }
@@ -92,30 +127,30 @@
 
         graphics2.lineStyle(1, 0xFF00FF, 1.0);
         graphics2.beginPath();
-        graphics2.moveTo(0, y0);
+        graphics2.moveTo(xoff, y0);
         for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(i, y0+scale*scale2[i]*(pairdist[i] - (1-Kfunction)*Math.PI*i*i));
+            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(pairdist[i] - (1-Kfunction)*Math.PI*i*i));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
-        graphics2.moveTo(0, y0);
+        graphics2.moveTo(xoff, y0);
         for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i));
+            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
-        graphics2.moveTo(0, y0);
+        graphics2.moveTo(xoff, y0);
         for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i + 2*std[i]));
+            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i + 2*std[i]));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
-        graphics2.moveTo(0, y0);
+        graphics2.moveTo(xoff, y0);
         for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i - 2*std[i]));
+            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i - 2*std[i]));
         }
         graphics2.strokePath();
     }
@@ -142,6 +177,9 @@
             }else if(event.key == "c") {
                 clamp_it = 1- clamp_it;
                 draw();
+            }else if(event.key == "f") {
+                game.scale.toggleFullscreen();
+                draw();
             }
             
             // console.dir(event);
@@ -149,8 +187,18 @@
         });
 
         this.input.on('pointerdown', function (pointer, gameObjects) {
-            addpoint(pointer.x, pointer.y)
+            addpoint(pointer.x, pointer.y);
         }, this);
+
+        // touch buttons
+        
+        var buttonfs = this.add.text(2, 10, 'FS', 0).setInteractive().on('pointerup', function () {game.scale.toggleFullscreen();});
+        var buttonno = this.add.text(2, 50, 'NO', 0).setInteractive().on('pointerup', function () {normalise=1-normalise;draw();});
+        var buttoncl = this.add.text(2, 90, 'CL', 0).setInteractive().on('pointerup', function () {clamp_it=1-clamp_it;draw();});
+        
+        //
+        draw();
+        redrawpoints();
     }
 
     </script>
