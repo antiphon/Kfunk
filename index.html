@@ -3,6 +3,8 @@
 <head>
     <meta charset="utf-8">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.19/dist/phaser-arcade-physics.min.js"></script>
+    <script src="papaparse.min.js"></script>
+    <script src="helpers.js"></script>
 </head>
 <body>
 
@@ -23,10 +25,13 @@
 
     var game = new Phaser.Game(config);
     var Rmax = config.width;
+    var rstep = 5;
+    var nR = Math.trunc(Rmax/rstep);
     var points = [];
     var graphics;
     var graphics2;
     var Kfunction = 0;
+    var edge_term = [];
     var normalise = 1; // divide by sd(i)
     var clamp_it = 0; // fit the envelope to screen
     var leftbar = 30; // for stuff
@@ -36,6 +41,14 @@
 
     function preload ()
     {
+ //       var fn ="I2_0_500_by_5.csv";
+ //       var I2 = loadCSV(fn);
+ //       console.log(I2);
+        // precalc edgeweights
+        for(let i = 0; i < nR; i++) {
+            edge_term[i] = double_integral_ball(scenewidth, sceneheight, i*rstep) /(Math.PI * i * i * rstep * rstep);
+        }
+        //  console.log(edge_term);
     }
 
     function restart()
@@ -55,7 +68,7 @@
         }
     }
 
-
+    
     function drawpoint(x, y) 
     {
         var point1 = new Phaser.Geom.Point(x, y);
@@ -81,7 +94,6 @@
 
     function draw()
     {
-        graphics2.clear();
         // graphics2.fillPointShape(point1, 1);
         var w = scenewidth;
         var h = sceneheight;
@@ -91,6 +103,7 @@
         var xoff = leftbar;
         var pairdist = [];
         
+        graphics2.clear();
         graphics2.lineStyle(1, 0x222222, 1.0);
         graphics2.strokeRect(0, 0, w+leftbar+rightbar, h);
         graphics2.strokeRect(leftbar, 0, w, h);
@@ -100,30 +113,36 @@
         graphics2.fillRect(xoff+w, 0, rightbar, h);
         
 
-        for (var i = 0; i < maxR; i++) {
+        for (let i = 0; i < nR; i++) {
             pairdist[i] = 0;
         }
-        for (var i = 0; i < points.length; i++) {
+        for (let i = 0; i < points.length; i++) {
             for (var j = i+1; j < points.length; j++) {
                 var a = points[i];
                 var b = points[j];
                 var dx = a.x - b.x;
                 var dy = a.y - b.y;
                 // d = Math.sqrt((a.x - b.x)^2 + (a.y-b.y)^2);
-                var d = Math.trunc(Math.sqrt(dx*dx + dy*dy));
-                if (d < maxR) {
-                    pairdist[d] += 2/((w-Math.abs(dx))*(h-Math.abs(dy))/(w*h));
+                //var d = Math.trunc(Math.sqrt(dx*dx + dy*dy));
+                var d = Math.sqrt(dx*dx + dy*dy);
+                if (d < maxR & d > 0) {
+                    var dk = Math.trunc(nR * d/maxR);
+                    for(let k = dk; k < nR; k++) pairdist[k] += 2;
                 }
             }
         }
         var n = points.length;
         var std = [];
+        // global correction
+        var const1 = 1;
+        //
         var lambda = n/vW;
-        for (var i = 0; i < maxR; i++) {
-            pairdist[i + 1] += pairdist[i];
-            pairdist[i] = pairdist[i] / (lambda * (n-1));
-            var r = i;
-            std[i] = Math.sqrt(2/Math.pow(lambda,2)*(Math.PI*r*r/vW + 0.96*UW/(vW*vW)*r*r*r + 0.13*lambda*UW/(vW*vW)*Math.pow(r,5)));
+        var lambda2 = lambda*lambda;
+        for (var i = 1; i < nR; i++) {
+//            pairdist[i + 1] += pairdist[i];
+            pairdist[i] = pairdist[i] / (lambda2 * const1 * edge_term[i]);
+            var r = i * rstep;
+            std[i] = Math.sqrt(2 / lambda2 * (Math.PI*r*r/vW + 0.96*UW/(vW*vW)*r*r*r + 0.13*lambda*UW/(vW*vW)*Math.pow(r,5)));
         }
         var scale = -0.001;
         var y0 = h/2;
@@ -144,33 +163,34 @@
         // fit to screen
         if(clamp_it == 1 && normalise == 0 & Kfunction == 0) scale =  -h / (4*smax);
         // carry on...
-
+        pairdist[0] = NaN;
         graphics2.lineStyle(1, 0xFF00FF, 1.0);
+
         graphics2.beginPath();
         graphics2.moveTo(xoff, y0);
-        for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(pairdist[i] - (1-Kfunction)*Math.PI*i*i));
+        for (var i = 0; i < nR; i++) {
+            graphics2.lineTo(xoff + i * rstep, y0+scale*scale2[i]*(pairdist[i] - (1-Kfunction)*Math.PI*i*i * rstep * rstep));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
         graphics2.moveTo(xoff, y0);
-        for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i));
+        for (var i = 0; i < nR; i++) {
+            graphics2.lineTo(xoff + i * rstep, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i * rstep * rstep));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
         graphics2.moveTo(xoff, y0);
-        for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i + 2*std[i]));
+        for (var i = 0; i < nR; i++) {
+            graphics2.lineTo(xoff + i * rstep, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i * rstep * rstep + 2*std[i]));
         }
         graphics2.strokePath();
 
         graphics2.beginPath();
         graphics2.moveTo(xoff, y0);
-        for (var i = 0; i < maxR; i++) {
-            graphics2.lineTo(xoff + i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i - 2*std[i]));
+        for (var i = 0; i < nR; i++) {
+            graphics2.lineTo(xoff + i * rstep, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i * rstep * rstep - 2*std[i]));
         }
         graphics2.strokePath();
     }
@@ -184,7 +204,7 @@
         graphics2 = this.add.graphics({ fillStyle: { color: 0xaa2266 } });
         this.input.keyboard.on('keydown', function (event) {
             if (event.key == "r") {
-                addpoint(w*Math.random(), h*Math.random());
+                simpoints(1);
             } else if (event.key == "k") {
                 Kfunction = 1;
                 draw();
