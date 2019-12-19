@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.15.1/dist/phaser-arcade-physics.min.js"></script>
+</head>
+<body>
+
+    <script>
+    var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        scene: {
+            preload: preload,
+            create: create
+        }
+    };
+
+    var game = new Phaser.Game(config);
+    var points = [];
+    var graphics;
+    var graphics2;
+    var Kfunction = 0;
+    var normalise = 0; // divide by sd(i)
+    var clamp_it = 0; // fit the envelope to screen
+    function preload ()
+    {
+    }
+
+    function addpoint(x, y)
+    {
+        var point1 = new Phaser.Geom.Point(x, y);
+        graphics.fillPointShape(point1, 15);
+        points.push({x:x, y:y});
+        draw();
+    }
+    function draw()
+    {
+        graphics2.clear();
+        // graphics2.fillPointShape(point1, 1);
+        var w = 800;
+        var h = 600;
+        var vW = w*h;
+        var UW = 2*(w+h);
+        var maxR = 800;
+        var pairdist = [];
+        for (var i = 0; i < maxR; i++) {
+            pairdist[i] = 0;
+        }
+        for (var i = 0; i < points.length; i++) {
+            for (var j = i+1; j < points.length; j++) {
+                var a = points[i];
+                var b = points[j];
+                var dx = a.x - b.x;
+                var dy = a.y - b.y;
+                // d = Math.sqrt((a.x - b.x)^2 + (a.y-b.y)^2);
+                var d = Math.trunc(Math.sqrt(dx*dx + dy*dy));
+                if (d < maxR) {
+                    pairdist[d] += 2/((w-Math.abs(dx))*(h-Math.abs(dy))/(w*h));
+                }
+            }
+        }
+        var n = points.length;
+        var std = [];
+        var lambda = n/vW;
+        for (var i = 0; i < maxR; i++) {
+            pairdist[i + 1] += pairdist[i];
+            pairdist[i] = pairdist[i] / (lambda * (n-1));
+            var r = i;
+            std[i] = Math.sqrt(2/Math.pow(lambda,2)*(Math.PI*r*r/vW + 0.96*UW/(vW*vW)*r*r*r + 0.13*lambda*UW/(vW*vW)*Math.pow(r,5)));
+        }
+        var scale = -0.001;
+        var y0 = h/2;
+        if (Kfunction) {
+            scale = -0.0003;
+            y0 = h;
+        }
+        // ranges
+        let smin = std[1];
+        let smax = std[1];
+        for(let i = 1; i < std.length; i++) { // first is rubbish = 0
+            smin = std[i] < smin ? std[i] : smin;
+            smax = std[i] > smax ? std[i] : smax;
+        }
+        // scale with sd
+        var scale2 = (normalise == 1 && Kfunction == 0) ? std.map(function(s) {return h/4 / (-scale*2*s);}) : std.map(function(el) {return 1});
+        //console.log([smin,smax]);
+        // fit to screen
+        if(clamp_it == 1 && normalise == 0 & Kfunction == 0) scale =  -h / (4*smax);
+        // carry on...
+
+        graphics2.lineStyle(1, 0xFF00FF, 1.0);
+        graphics2.beginPath();
+        graphics2.moveTo(0, y0);
+        for (var i = 0; i < maxR; i++) {
+            graphics2.lineTo(i, y0+scale*scale2[i]*(pairdist[i] - (1-Kfunction)*Math.PI*i*i));
+        }
+        graphics2.strokePath();
+
+        graphics2.beginPath();
+        graphics2.moveTo(0, y0);
+        for (var i = 0; i < maxR; i++) {
+            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i));
+        }
+        graphics2.strokePath();
+
+        graphics2.beginPath();
+        graphics2.moveTo(0, y0);
+        for (var i = 0; i < maxR; i++) {
+            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i + 2*std[i]));
+        }
+        graphics2.strokePath();
+
+        graphics2.beginPath();
+        graphics2.moveTo(0, y0);
+        for (var i = 0; i < maxR; i++) {
+            graphics2.lineTo(i, y0+scale*scale2[i]*(Kfunction*Math.PI*i*i - 2*std[i]));
+        }
+        graphics2.strokePath();
+    }
+
+    function create ()
+    {
+        var w = config.width;
+        var h = config.height;
+
+        graphics = this.add.graphics({ fillStyle: { color: 0x2266aa } });
+        graphics2 = this.add.graphics({ fillStyle: { color: 0xaa2266 } });
+        this.input.keyboard.on('keydown', function (event) {
+            if (event.key == "r") {
+                addpoint(w*Math.random(), h*Math.random());
+            } else if (event.key == "k") {
+                Kfunction = 1;
+                draw();
+            } else if (event.key == "l") {
+                Kfunction = 0;
+                draw();
+            } else if(event.key == "s") {
+                normalise = 1- normalise;
+                draw();
+            }else if(event.key == "c") {
+                clamp_it = 1- clamp_it;
+                draw();
+            }
+            
+            // console.dir(event);
+
+        });
+
+        this.input.on('pointerdown', function (pointer, gameObjects) {
+            addpoint(pointer.x, pointer.y)
+        }, this);
+    }
+
+    </script>
+
+</body>
+</html>
